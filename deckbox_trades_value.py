@@ -6,13 +6,13 @@ import urllib
 # Main class
 ##########################################
 class Main:
-    DECKBOX_DOMAIN          = "http://deckbox.org"
-    TRADE_LINK_XPATH        = "//*[@id='content']/div[4]/div[2]/table/tbody/tr/td[1]/div/a[1]"
-    TRADE_PAGINATION_XPATH  = "//*[@id='content']/div[4]/div[2]/div/div[1]/span"
+    DECKBOX_DOMAIN              = "http://deckbox.org"
     TRADE_PAGINATION_SELECTOR   = ".pagination_controls:first span"
     TRADE_LINK_SELECTOR         = ".trades_listing:first a[href^='/trade']"
+    VALUE_SENT_SELECTOR         = "tbody#tbody_{user_id} td.price"
+    VALUE_RECEIVED_SELECTOR     = "tbody:not(#tbody_{user_id}) td.price"
     PAGINATION_LIMIT        = 15
-    TIME_BETWEEN_REQUESTS   = 0.25 #in secondes
+    TIME_BETWEEN_REQUESTS   = 0.25 #in seconds
     OUTPUT_PADDING_SENT     = 10
     OUTPUT_PADDING_RECEIVED = 15
 
@@ -53,8 +53,8 @@ class Main:
                 response = pq(url=self.DECKBOX_DOMAIN + pq(trade_link).attr('href'))
                 print "  Analysing trade : " + trade_id + ": " + response.base_url
 
-                trade_user_sent_value       = response("tbody#tbody_" + user_id + " td.price").text()
-                trade_user_received_value   = response("tbody:not(#tbody_" + user_id + ") td.price").text()
+                trade_user_sent_value       = response(self.VALUE_SENT_SELECTOR.replace("{user_id}", user_id)).text()
+                trade_user_received_value   = response(self.VALUE_RECEIVED_SELECTOR.replace("{user_id}", user_id)).text()
                 trade_url = self.DECKBOX_DOMAIN + pq(trade_link).attr('href')
 
                 trades_values.append([trade_user_sent_value, trade_user_received_value, trade_url])
@@ -78,10 +78,10 @@ class Main:
             total_value_sent        += converted_value_sent
             total_value_received    += converted_value_received
 
-            print self.get_colored_prices(converted_value_received, converted_value_sent, " (" + trade_url + ")")
+            print self.get_colored_prices(converted_value_sent, converted_value_received, " (" + trade_url + ")")
 
-        print "\nTOTAL RECEIVED".rjust(self.OUTPUT_PADDING_RECEIVED) + " " + "TOTAL SENT".rjust(self.OUTPUT_PADDING_SENT)
-        print self.get_colored_prices(total_value_received, total_value_sent, " ($" + str(total_value_received - total_value_sent) + ")")
+        print "\nTOTAL SENT".rjust(self.OUTPUT_PADDING_SENT) + " " + "TOTAL RECEIVED".rjust(self.OUTPUT_PADDING_RECEIVED)
+        print self.get_colored_prices(total_value_sent, total_value_received, " ($" + str(total_value_sent - total_value_received) + ")")
 
     #Method to get colorized values
     def get_colored_prices(self, value1, value2, append_string = ""):
