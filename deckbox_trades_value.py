@@ -15,6 +15,7 @@ class Main:
     TIME_BETWEEN_REQUESTS   = 0.25 #in seconds
     OUTPUT_PADDING_SENT     = 10
     OUTPUT_PADDING_RECEIVED = 15
+    DEBUG                   = False
 
     def run(self, username):
         user_trades_url         = self.DECKBOX_DOMAIN + "/users/" + username + "/trades"
@@ -29,10 +30,13 @@ class Main:
         response = pq(url=user_trades_url)
         try:
             total_trade_pages = re.search("(\d+)$", response(self.TRADE_PAGINATION_SELECTOR).text()).group(1)
-            print "Trade pages: " + total_trade_pages
+            if self.DEBUG:
+                print "Trade pages: " + total_trade_pages
         except:
             print "Couldn't find user " + bcolors.FAIL + username + bcolors.ENDC
             return
+
+        print "VALUE SENT".rjust(self.OUTPUT_PADDING_SENT) + " " + "VALUE RECEIVED".rjust(self.OUTPUT_PADDING_RECEIVED)
 
         #Loop through each trades page to get the trades ID
         for page_number in range(1, int(total_trade_pages) + 1):
@@ -42,7 +46,8 @@ class Main:
                 break
 
             response = pq(url=user_trades_url + "?p1=" + str(page_number))
-            print "Analysing url: " + response.base_url
+            if self.DEBUG:
+                print "Analysing url: " + response.base_url
 
             #Check each trades link to get the trade id. Then request the trade page and get the sent value and received value
             for trade_link in response(self.TRADE_LINK_SELECTOR):
@@ -51,34 +56,31 @@ class Main:
 
 
                 response = pq(url=self.DECKBOX_DOMAIN + pq(trade_link).attr('href'))
-                print "  Analysing trade : " + trade_id + ": " + response.base_url
+                if self.DEBUG:
+                    print "  Analysing trade : " + trade_id + ": " + response.base_url
 
                 trade_user_sent_value       = response(self.VALUE_SENT_SELECTOR.replace("{user_id}", user_id)).text()
                 trade_user_received_value   = response(self.VALUE_RECEIVED_SELECTOR.replace("{user_id}", user_id)).text()
                 trade_url = self.DECKBOX_DOMAIN + pq(trade_link).attr('href')
 
-                trades_values.append([trade_user_sent_value, trade_user_received_value, trade_url])
+                #Do the math
+                try:
+                    converted_value_sent = float(trade_user_sent_value[1:])
+                except ValueError:
+                    converted_value_sent = 0
+
+                try:
+                    converted_value_received = float(trade_user_received_value[1:])
+                except ValueError:
+                    converted_value_received = 0
+
+                total_value_sent        += converted_value_sent
+                total_value_received    += converted_value_received
+
+                print self.get_colored_prices(converted_value_sent, converted_value_received, " (" + trade_url + ")")
+
+                #Timeout before the next request to not DDOS the server.
                 time.sleep(self.TIME_BETWEEN_REQUESTS)
-
-        print "\nVALUE SENT".rjust(self.OUTPUT_PADDING_SENT) + " " + "VALUE RECEIVED".rjust(self.OUTPUT_PADDING_RECEIVED)
-
-        #Do the math
-        for value_sent, value_received, trade_url in trades_values:
-
-            try:
-                converted_value_sent = float(value_sent[1:])
-            except ValueError:
-                converted_value_sent = 0
-
-            try:
-                converted_value_received = float(value_received[1:])
-            except ValueError:
-                converted_value_received = 0
-
-            total_value_sent        += converted_value_sent
-            total_value_received    += converted_value_received
-
-            print self.get_colored_prices(converted_value_sent, converted_value_received, " (" + trade_url + ")")
 
         print "\nTOTAL SENT".rjust(self.OUTPUT_PADDING_SENT) + " " + "TOTAL RECEIVED".rjust(self.OUTPUT_PADDING_RECEIVED)
         print self.get_colored_prices(total_value_sent, total_value_received, " ($" + str(total_value_sent - total_value_received) + ")")
