@@ -1,13 +1,16 @@
 import sys, re, time
-from grab import Grab
-
+from pyquery import PyQuery as pq
+from lxml import etree
+import urllib
 ##########################################
 # Main class
 ##########################################
 class Main:
     DECKBOX_DOMAIN          = "http://deckbox.org"
-    TRADE_TABLE_XPATH       = "//*[@id='content']/div[4]/div[2]/table/tr/td/div[1]/a[1]"
+    TRADE_LINK_XPATH        = "//*[@id='content']/div[4]/div[2]/table/tbody/tr/td[1]/div/a[1]"
     TRADE_PAGINATION_XPATH  = "//*[@id='content']/div[4]/div[2]/div/div[1]/span"
+    TRADE_PAGINATION_SELECTOR   = ".pagination_controls:first span"
+    TRADE_LINK_SELECTOR         = ".trades_listing:first a[href^='/trade']"
     PAGINATION_LIMIT        = 15
     TIME_BETWEEN_REQUESTS   = 0.25 #in secondes
     OUTPUT_PADDING_SENT     = 10
@@ -23,11 +26,10 @@ class Main:
 
 
         #TODO: get ride of this initial request to get the number of pages
-        g = Grab()
-        response = g.go(user_trades_url)
-
+        response = pq(url=user_trades_url)
         try:
-            total_trade_pages = re.search("(\d+)$", g.doc.select(self.TRADE_PAGINATION_XPATH).text()).group(1)
+            total_trade_pages = re.search("(\d+)$", response(self.TRADE_PAGINATION_SELECTOR).text()).group(1)
+            print "Trade pages: " + total_trade_pages
         except:
             print "Couldn't find user " + bcolors.FAIL + username + bcolors.ENDC
             return
@@ -39,23 +41,21 @@ class Main:
             if (page_number > self.PAGINATION_LIMIT):
                 break
 
-            print "Analysing url: " + user_trades_url + "?p1=" + str(page_number)
-            g = Grab()
-            response = g.go(user_trades_url + "?p1=" + str(page_number))
+            response = pq(url=user_trades_url + "?p1=" + str(page_number))
+            print "Analysing url: " + response.base_url
 
             #Check each trades link to get the trade id. Then request the trade page and get the sent value and received value
-            for trade_link in g.doc.select(self.TRADE_TABLE_XPATH):
-                trade_id = re.search("/trades/(\d+)", trade_link.attr('href')).group(1)
-                user_id  = re.search("/trades/(\d+)\?s=(\d+)", trade_link.attr('href')).group(2)
+            for trade_link in response(self.TRADE_LINK_SELECTOR):
+                trade_id = re.search("/trades/(\d+)", pq(trade_link).attr('href')).group(1)
+                user_id  = re.search("/trades/(\d+)\?s=(\d+)", pq(trade_link).attr('href')).group(2)
 
-                print "  Analysing trade : " + trade_id
 
-                g = Grab()
-                response = g.go(self.DECKBOX_DOMAIN + trade_link.attr('href'))
+                response = pq(url=self.DECKBOX_DOMAIN + pq(trade_link).attr('href'))
+                print "  Analysing trade : " + trade_id + ": " + response.base_url
 
-                trade_user_sent_value       = g.doc.select("//*[@id='trade']/div/div/table/tbody[contains(@id, '" + user_id + "')]/tr[last()]/td[last()]").text()
-                trade_user_received_value   = g.doc.select("//*[@id='trade']/div/div/table/tbody[not(contains(@id, '" + user_id + "'))]/tr[last()]/td[last()]").text()
-                trade_url = self.DECKBOX_DOMAIN + trade_link.attr('href')
+                trade_user_sent_value       = response("tbody#tbody_" + user_id + " td.price").text()
+                trade_user_received_value   = response("tbody:not(#tbody_" + user_id + ") td.price").text()
+                trade_url = self.DECKBOX_DOMAIN + pq(trade_link).attr('href')
 
                 trades_values.append([trade_user_sent_value, trade_user_received_value, trade_url])
                 time.sleep(self.TIME_BETWEEN_REQUESTS)

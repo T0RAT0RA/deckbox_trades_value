@@ -1,5 +1,5 @@
 argparse==1.2.1
-grab==0.4.13
+cssselect==0.9.1
 lxml==3.4.1
-pycurl==7.19.5
+pyquery==1.2.9
 wsgiref==0.1.2
